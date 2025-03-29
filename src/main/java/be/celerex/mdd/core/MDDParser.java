@@ -1,14 +1,20 @@
 package be.celerex.mdd.core;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Stack;
+
+import be.celerex.mdd.api.CollectionProvider;
+import be.celerex.mdd.api.ObjectProvider;
 
 // need to switch to custom content because of meta annotations?
 // do we absolutely need annotations though...?
 public class MDDParser {
+	
+	@SuppressWarnings("rawtypes")
+	private CollectionProvider collectionProvider = new STLCollectionProvider();
+	@SuppressWarnings("rawtypes")
+	private ObjectProvider objectProvider = new STLObjectProvider();
 	
 	@SuppressWarnings("unchecked")
 	public Object parse(String content) throws MDDSyntaxException {
@@ -20,7 +26,7 @@ public class MDDParser {
 			int expectedDepth = 0;
 
 			boolean anonymousList = false;
-			List<Object> scalars = new ArrayList<>();
+			Object scalars = collectionProvider.newInstance();
 			// it is a line-based approach
 			for (int i = 0; i < analyses.size(); i++) {
 				BlockAnalysis analysis = analyses.get(i);
@@ -75,10 +81,10 @@ public class MDDParser {
 					// if there is no direct parent, we are likely building an anonymous object
 					case ELEMENT:
 						if (stack.isEmpty()) {
-							stack.push(new LinkedHashMap<String, Object>());
+							stack.push(objectProvider.newInstance());
 						}
 						Object peekElement = stack.peek();
-						if (!(peekElement instanceof Map)) {
+						if (!objectProvider.isObject(peekElement)) {
 							throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The element is not part of an object");
 						}
 						List<String> keyValue = analysis.getKeyValue();
@@ -93,50 +99,50 @@ public class MDDParser {
 								BlockAnalysis next = analyses.get(i + 1);
 								if (next.getDepth() >= expectedDepth) {
 									if (next.getBlockType() == BlockType.LIST) {
-										List<Object> newList = new ArrayList<>();
-										((Map<String, Object>) peekElement).put(elementKey, newList);
+										Object newList = collectionProvider.newInstance();
+										objectProvider.set(peekElement, elementKey, newList);
 										stack.push(newList);
 									}
 									else if (next.getBlockType() == BlockType.ELEMENT) {
-										LinkedHashMap<String, Object> newMap = new LinkedHashMap<String, Object>();
-										((Map<String, Object>) peekElement).put(elementKey, newMap);
-										stack.push(newMap);
+										Object newObject = objectProvider.newInstance();
+										objectProvider.set(peekElement, elementKey, newObject);
+										stack.push(newObject);
 									}
 									else {
 										throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The element is not followed by a list or object");			
 									}
 								}
 								else {
-									((Map<String, Object>) peekElement).put(elementKey, null);
+									objectProvider.set(peekElement, elementKey, null);
 								}
 							}
 							
 						}
 						// we have a value as well, set it immediately
 						else {
-							((Map<String, Object>) peekElement).put(elementKey, interpretScalar(keyValue.get(1) + additionalContent.toString()));
+							objectProvider.set(peekElement, elementKey, interpretScalar(keyValue.get(1) + additionalContent.toString()));
 						}
 					break;
 					case LIST:
 						// if we have a key AND a value, we have a named scalar list
 						if (analysis.getKeyValue() != null && analysis.getKeyValue().size() == 2) {
 							if (stack.isEmpty()) {
-								stack.push(new LinkedHashMap<String, Object>());
+								stack.push(objectProvider.newInstance());
 							}
 							Object peekList = stack.peek();
-							if (!(peekList instanceof Map)) {
+							if (!objectProvider.isObject(peekList)) {
 								throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The named list entry is not part of an object");
 							}
 							String key = cleanupKey(analysis.getKeyValue().get(0));
-							Object existingList = ((Map<String, Object>) peekList).get(key);
+							Object existingList = objectProvider.get(peekList, key);
 							if (existingList == null) {
-								existingList = new ArrayList<Object>();
-								((Map<String, Object>) peekList).put(analysis.getKeyValue().get(0), existingList);
+								existingList = collectionProvider.newInstance();
+								objectProvider.set(peekList, analysis.getKeyValue().get(0), existingList);
 							}
-							else if (!(existingList instanceof List)) {
+							else if (!collectionProvider.isCollection(existingList)) {
 								throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The named entry is not a list");
 							}
-							((List<Object>) existingList).add(interpretScalar(analysis.getKeyValue().get(1) + additionalContent.toString()));
+							collectionProvider.add(existingList, interpretScalar(analysis.getKeyValue().get(1) + additionalContent.toString()));
 						}
 						// if we have a key only, we have a named complex entry
 						else if (analysis.getKeyValue() != null && analysis.getKeyValue().size() == 1) {
@@ -145,12 +151,12 @@ public class MDDParser {
 							if (isAnonymous(analysis.getKeyValue().get(0))) {
 								// new list
 								if (stack.isEmpty()) {
-									targetList = new ArrayList<Object>();
+									targetList = collectionProvider.newInstance();
 									stack.push(targetList);
 									anonymousList = true;
 								}
 								// continuation of a list
-								else if (stack.size() == 1 && stack.peek() instanceof List) {
+								else if (stack.size() == 1 && collectionProvider.isCollection(stack.peek())) {
 									targetList = stack.peek();
 								}
 								// not supported?
@@ -162,24 +168,24 @@ public class MDDParser {
 							else {
 								// push an anonymous parent if needed
 								if (stack.isEmpty()) {
-									stack.push(new LinkedHashMap<String, Object>());
+									stack.push(objectProvider.newInstance());
 								}
 								Object peekList = stack.peek();
-								if (!(peekList instanceof Map)) {
+								if (!objectProvider.isObject(peekList)) {
 									throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The named list entry is not part of an object");
 								}
 								String key = cleanupKey(analysis.getKeyValue().get(0));
-								targetList = ((Map<String, Object>) peekList).get(key);
+								targetList = objectProvider.get(peekList, key);
 								if (targetList == null) {
-									targetList = new ArrayList<Object>();
-									((Map<String, Object>) peekList).put(key, targetList);
+									targetList = collectionProvider.newInstance();
+									objectProvider.set(peekList, key, targetList);
 								}
-								else if (!(targetList instanceof List)) {
+								else if (!collectionProvider.isCollection(targetList)) {
 									throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The named entry is not a list");
 								}
 							}
-							Map<String, Object> newRecord = new LinkedHashMap<String, Object>();
-							((List<Object>) targetList).add(newRecord);
+							Object newRecord = objectProvider.newInstance();
+							collectionProvider.add(targetList, newRecord);
 							stack.push(newRecord);
 							expectedDepth = analysis.getDepth() + 1;
 						}
@@ -189,7 +195,7 @@ public class MDDParser {
 								continue;
 							}
 							if (stack.isEmpty()) {
-								stack.push(new ArrayList<Object>());
+								stack.push(collectionProvider.newInstance());
 								expectedDepth = 1;
 							}
 							Object peekList = stack.peek();
@@ -197,17 +203,17 @@ public class MDDParser {
 								throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The scalar can not be added to a list");
 							}
 							for (int y = expectedDepth; y < analysis.getDepth(); y++) {
-								ArrayList<Object> arrayList = new ArrayList<Object>();
-								((List<Object>) peekList).add(arrayList);
-								stack.push(arrayList);
-								peekList = arrayList;
+								Object newCollection = collectionProvider.newInstance();
+								collectionProvider.add(peekList, newCollection);
+								stack.push(newCollection);
+								peekList = newCollection;
 							}
 							expectedDepth = analysis.getDepth();
-							((List<Object>) peekList).add(interpretScalar(analysis.getContent() + additionalContent.toString()));
+							collectionProvider.add(peekList, interpretScalar(analysis.getContent() + additionalContent.toString()));
 						}
 					break;
 					case SCALAR:
-						scalars.add(interpretScalar(analysis.getContent() + additionalContent.toString()));
+						collectionProvider.add(scalars, interpretScalar(analysis.getContent() + additionalContent.toString()));
 //						stack.push(interpretScalar(analysis.getContent()));
 					break;
 					case META:
@@ -215,10 +221,11 @@ public class MDDParser {
 				}
 			}
 			if (stack.isEmpty()) {
-				if (scalars.size() == 1) {
-					return scalars.get(0);
+				int size = collectionProvider.size(scalars);
+				if (size == 1) {
+					return collectionProvider.get(scalars, 0);
 				}
-				else if (scalars.size() > 1) {
+				else if (size > 1) {
 					return scalars;
 				}
 				return null;
@@ -513,21 +520,20 @@ public class MDDParser {
 		return escaped;
 	}
 	
-	public static class MDDSyntaxException extends Exception {
-		private static final long serialVersionUID = 1L;
-		private int lineNumber;
-		private String line;
-
-		public MDDSyntaxException(int lineNumber, String line, String message) {
-			super("[" + lineNumber + "] " + message);
-			this.lineNumber = lineNumber;
-			this.line = line;
-		}
-		public int getLineNumber() {
-			return lineNumber;
-		}
-		public String getLine() {
-			return line;
-		}
+	public CollectionProvider<?> getCollectionProvider() {
+		return collectionProvider;
 	}
+
+	public void setCollectionProvider(CollectionProvider<?> collectionProvider) {
+		this.collectionProvider = collectionProvider;
+	}
+
+	public ObjectProvider<?> getObjectProvider() {
+		return objectProvider;
+	}
+
+	public void setObjectProvider(ObjectProvider<?> objectProvider) {
+		this.objectProvider = objectProvider;
+	}
+	
 }

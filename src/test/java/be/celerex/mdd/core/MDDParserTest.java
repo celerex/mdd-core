@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import be.celerex.mdd.core.MDDParser.MDDSyntaxException;
 import junit.framework.TestCase;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
