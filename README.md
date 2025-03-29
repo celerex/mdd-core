@@ -26,6 +26,8 @@ A scalar value is a singular value, in the simplest case this is a string.
 this is a scalar value
 ```
 
+Expected result:
+
 ```expected
 this is a scalar value
 ```
@@ -35,6 +37,8 @@ The parser will initially parse everything as a string, even if it appears to be
 ```mdd
 42
 ```
+
+Expected result:
 
 ```expected
 42
@@ -51,6 +55,8 @@ another linefeed
      and some leading spaces!
 and some trailing content as well
 ```
+
+Expected result:
 
 ```expected
 This is a sentence
@@ -502,7 +508,7 @@ This generates:
 		[["test1", "test2", "test3"]], 
 		[["test4", "test5", "test6"]], 
 		[["test7", "test8\nand more!", "test9"]],
-		[[["test10", ["test11\nwith additional content"], "test12", ["test13"]]]]]
+		[[["test10", ["test11\nwith additional content"], "test12", ["test13"]]]]
 	]
 ]
 ```

@@ -15,8 +15,6 @@ public class MDDParser {
 		if (content != null && !content.trim().isEmpty()) {
 			List<BlockAnalysis> analyses = analyze(content);
 			Stack<Object> stack = new Stack<Object>();
-			// we always start at depth 0
-			int depth = 0;
 			// for example starting an element might generate an expectation of a depth
 			// if that expection is not met, we must close the previous entry
 			int expectedDepth = 0;

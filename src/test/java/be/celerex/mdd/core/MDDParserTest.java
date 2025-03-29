@@ -99,12 +99,6 @@ public class MDDParserTest extends TestCase {
 		assertEquals("true", new MDDParser().parse("true"));
 	}
 	
-	public void testMultiline() throws MDDSyntaxException {
-		MDDParser parser = new MDDParser();
-		String content = "5\n"
-				+ "\t\t6";
-	}
-	
 	public void testComplexRoots() throws MDDSyntaxException {
 		MDDParser parser = new MDDParser();
 		

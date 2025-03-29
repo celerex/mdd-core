@@ -8,6 +8,8 @@ A scalar value is a singular value, in the simplest case this is a string.
 this is a scalar value
 ```
 
+Expected result:
+
 ```expected
 this is a scalar value
 ```
@@ -17,6 +19,8 @@ The parser will initially parse everything as a string, even if it appears to be
 ```mdd
 42
 ```
+
+Expected result:
 
 ```expected
 42
@@ -33,6 +37,8 @@ another linefeed
      and some leading spaces!
 and some trailing content as well
 ```
+
+Expected result:
 
 ```expected
 This is a sentence
