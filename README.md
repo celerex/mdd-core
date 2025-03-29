@@ -55,7 +55,7 @@ Depth is calculated based on leading whitespace and syntactical elements (if any
 The collection here can be represented in json as:
 
 ```json
-[[test1, test2]]
+[["test1", "test2"]]
 ```
 
 > The following documentation actually doubles as the unit tests and is copied from there.
