@@ -6,6 +6,7 @@ import java.util.Stack;
 
 import be.celerex.mdd.api.CollectionProvider;
 import be.celerex.mdd.api.ObjectProvider;
+import be.celerex.mdd.api.ScalarProvider;
 
 // need to switch to custom content because of meta annotations?
 // do we absolutely need annotations though...?
@@ -15,6 +16,8 @@ public class MDDParser {
 	private CollectionProvider collectionProvider = new STLCollectionProvider();
 	@SuppressWarnings("rawtypes")
 	private ObjectProvider objectProvider = new STLObjectProvider();
+	
+	private ScalarProvider scalarProvider = new StandardScalarProvider();
 	
 	@SuppressWarnings("unchecked")
 	public Object parse(String content) throws MDDSyntaxException {
@@ -28,6 +31,8 @@ public class MDDParser {
 			boolean anonymousList = false;
 			Object scalars = collectionProvider.newInstance();
 			// it is a line-based approach
+			Object lastObject = null;
+			String lastKey = null;
 			for (int i = 0; i < analyses.size(); i++) {
 				BlockAnalysis analysis = analyses.get(i);
 				
@@ -87,8 +92,10 @@ public class MDDParser {
 						if (!objectProvider.isObject(peekElement)) {
 							throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The element is not part of an object");
 						}
+						lastObject = peekElement;
 						List<String> keyValue = analysis.getKeyValue();
 						String elementKey = cleanupKey(analysis.getKeyValue().get(0));
+						lastKey = elementKey;
 						// we are starting a new element
 						if (keyValue.size() == 1) {
 							// if the next line is an element, we are building an object
@@ -106,6 +113,7 @@ public class MDDParser {
 									else if (next.getBlockType() == BlockType.ELEMENT) {
 										Object newObject = objectProvider.newInstance();
 										objectProvider.set(peekElement, elementKey, newObject);
+										lastObject = newObject;
 										stack.push(newObject);
 									}
 									else {
@@ -120,7 +128,7 @@ public class MDDParser {
 						}
 						// we have a value as well, set it immediately
 						else {
-							objectProvider.set(peekElement, elementKey, interpretScalar(keyValue.get(1) + additionalContent.toString()));
+							objectProvider.set(peekElement, elementKey, interpretScalar(keyValue.get(1) + additionalContent.toString(), peekElement, elementKey));
 						}
 					break;
 					case LIST:
@@ -128,6 +136,7 @@ public class MDDParser {
 						if (analysis.getKeyValue() != null && analysis.getKeyValue().size() == 2) {
 							if (stack.isEmpty()) {
 								stack.push(objectProvider.newInstance());
+								lastObject = stack.peek();
 							}
 							Object peekList = stack.peek();
 							if (!objectProvider.isObject(peekList)) {
@@ -142,7 +151,7 @@ public class MDDParser {
 							else if (!collectionProvider.isCollection(existingList)) {
 								throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The named entry is not a list");
 							}
-							collectionProvider.add(existingList, interpretScalar(analysis.getKeyValue().get(1) + additionalContent.toString()));
+							collectionProvider.add(existingList, interpretScalar(analysis.getKeyValue().get(1) + additionalContent.toString(), existingList, key));
 						}
 						// if we have a key only, we have a named complex entry
 						else if (analysis.getKeyValue() != null && analysis.getKeyValue().size() == 1) {
@@ -209,11 +218,11 @@ public class MDDParser {
 								peekList = newCollection;
 							}
 							expectedDepth = analysis.getDepth();
-							collectionProvider.add(peekList, interpretScalar(analysis.getContent() + additionalContent.toString()));
+							collectionProvider.add(peekList, interpretScalar(analysis.getContent() + additionalContent.toString(), lastObject, lastKey));
 						}
 					break;
 					case SCALAR:
-						collectionProvider.add(scalars, interpretScalar(analysis.getContent() + additionalContent.toString()));
+						collectionProvider.add(scalars, interpretScalar(analysis.getContent() + additionalContent.toString(), null, null));
 //						stack.push(interpretScalar(analysis.getContent()));
 					break;
 					case META:
@@ -254,9 +263,8 @@ public class MDDParser {
 		return key;
 	}
 	
-	private Object interpretScalar(String scalar) {
-		// TODO: interpret stuff like numbers etc?
-		return scalar;
+	private Object interpretScalar(String scalar, Object intoObject, String key) {
+		return scalarProvider.unmarshal(scalar, intoObject, key);
 	}
 	
 	/**
@@ -535,5 +543,13 @@ public class MDDParser {
 	public void setObjectProvider(ObjectProvider<?> objectProvider) {
 		this.objectProvider = objectProvider;
 	}
-	
+
+	public ScalarProvider getScalarProvider() {
+		return scalarProvider;
+	}
+
+	public void setScalarProvider(ScalarProvider scalarProvider) {
+		this.scalarProvider = scalarProvider;
+	}
+
 }
