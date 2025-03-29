@@ -69,3 +69,10 @@ This package contains a parser and formatter written in java. Parsing a markdown
 String markdown = ...;
 Object parsed = new MDDParser().parse(markdown);
 ```
+
+Formatting can be done with:
+
+```java
+Object object = ...;
+String markdown = new MDDFormatter().format(object);
+```
