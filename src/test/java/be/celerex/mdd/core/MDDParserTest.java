@@ -3,6 +3,7 @@ package be.celerex.mdd.core;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -157,5 +158,26 @@ public class MDDParserTest extends TestCase {
 		
 		content = "book: 5";
 		assertEquals("{book=5}", parser.parse(content).toString());
+	}
+	
+	public void testScalarParsing() throws MDDSyntaxException {
+		String content = "5";
+		MDDParser parser = new MDDParser();
+		parser.setScalarProvider(new ParsingScalarProvider());
+		Object object = parser.parse(content);
+		assertEquals(BigInteger.class, object.getClass());
+		
+		content = "true";
+		object = parser.parse(content);
+		assertEquals(Boolean.class, object.getClass());
+		content = "- 1\n"
+				+ "- 2\n"
+				+ "- 3";
+		object = parser.parse(content);
+		assertEquals(List.of(
+			BigInteger.valueOf(1), 
+			BigInteger.valueOf(2), 
+			BigInteger.valueOf(3)
+		), object);
 	}
 }
