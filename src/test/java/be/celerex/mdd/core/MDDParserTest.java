@@ -95,8 +95,19 @@ public class MDDParserTest extends TestCase {
 	}
 	
 	public void testBasicScalars() throws MDDSyntaxException {
-		assertEquals("5", new MDDParser().parse("5"));
-		assertEquals("true", new MDDParser().parse("true"));
+		MDDParser parser = new MDDParser();
+		assertEquals("5", parser.parse("5"));
+		assertEquals("true", parser.parse("true"));
+		
+		String content = "multiline\n"
+			+ "value";
+		
+		// it should remain a singular value
+		assertEquals(content, parser.parse(content));
+		
+		content = "	- test1\n"
+				+ "	- test2";
+		assertEquals("[[test1, test2]]", parser.parse(content).toString());
 	}
 	
 	public void testComplexRoots() throws MDDSyntaxException {

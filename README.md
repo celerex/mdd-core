@@ -10,11 +10,55 @@ I was looking for a data serialization format that focuses on **simplicity** and
 
 Enter MDD (**m**ark**d**own **d**ata): the human readable format that is also syntactically correct markdown.
 
-# Documentation
+# Syntax
 
-The following documentation actually doubles as the unit tests and is copied from there.
+## Scalar values
 
---
+Scalar values are (at the core) all strings. They can off course be parsed further into numbers and other types of scalars. None of those scalar values however are surrounded by quotes.
+
+## Multiline
+
+Multiline values are natively supported: any content that is at the same level (or deeper) from the previous content and does not start a new structural element. This represents a single string:
+
+```mdd
+multiline
+value
+```
+
+## Objects
+
+Complex objects have fields, these fields are indicated as a markdown list starting with an asterisk.
+
+```mdd
+myObject:
+* myField: myValue
+```
+
+## Collections
+
+Collections have entries, each entry is indicated as markdown list starting with a dash.
+
+```mdd
+- entry1
+- entry2
+```
+
+## Depth
+
+Depth is calculated based on leading whitespace and syntactical elements (if any). For example this list is defined at depth 2: 1 depth from a leading tab, 1 depth from the actual list sign:
+
+```mdd
+	- test1
+	- test2
+```
+
+The collection here can be represented in json as:
+
+```json
+[[test1, test2]]
+```
+
+> The following documentation actually doubles as the unit tests and is copied from there.
 
 # Scalar values
 
