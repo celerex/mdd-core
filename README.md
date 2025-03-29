@@ -6,7 +6,7 @@ A markdown compatible file format for data serialization and exchange.
 
 Markdown has long since won the war for the wiki formats and is currently the markup language of choice when communicating with LLM's.
 
-I was looking for a data serialization format that focuses on **simplicity** and **readability** that I could integrate in my LLM-based AI tool as a structural data formats that bridges the gap between being useful but also readable.
+I was looking for a data serialization format that focuses on **simplicity** and **readability** that I could integrate in my LLM-based AI tool as a structural data format that is both useful and readable.
 
 Enter MDD (**m**ark**d**own **d**ata): the human readable format that is also syntactically correct markdown.
 
