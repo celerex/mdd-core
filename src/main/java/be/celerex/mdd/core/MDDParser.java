@@ -19,6 +19,10 @@ public class MDDParser {
 	
 	private ScalarProvider scalarProvider = new StandardScalarProvider();
 	
+	// normally we only take root plain text as a key, e.g. "book:"
+	// however, in documents it can be userful to allow them as headers as well, e.g. "# book:"
+	private boolean allowHeadersAsKey = false;
+	
 	@SuppressWarnings("unchecked")
 	public Object parse(String content) throws MDDSyntaxException {
 		if (content != null && !content.trim().isEmpty()) {
@@ -37,7 +41,7 @@ public class MDDParser {
 				BlockAnalysis analysis = analyses.get(i);
 				
 				// we don't care about text
-				if (analysis.getBlockType() == BlockType.TEXT) {
+				if (analysis.getBlockType() == BlockType.TEXT || analysis.getBlockType() == BlockType.EMPTY) {
 					continue;
 				}
 				
@@ -81,6 +85,7 @@ public class MDDParser {
 				switch (analysis.getBlockType()) {
 					// we don't care about text
 					case TEXT: continue;
+					case EMPTY: continue;
 					case MULTILINE: throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "Invalid multiline detected");
 					// an element must be added to the parent
 					// if there is no direct parent, we are likely building an anonymous object
@@ -253,7 +258,7 @@ public class MDDParser {
 	
 	// we can add _key_ to indicate that it is an anonymous key
 	// we can add **key** just to make it pretty in markdown
-	private static String cleanupKey(String key) {
+	private String cleanupKey(String key) {
 		if (key.startsWith("_") && key.endsWith("_")) {
 			return key.substring(1, key.length() - 1);
 		}
@@ -333,7 +338,7 @@ public class MDDParser {
 				
 				// based on the leading character (if any), we take particular actions
 				String trimmed = line.trim();
-				BlockType blockType;
+				BlockType blockType = null;
 				TextType textType = null;
 				if (trimmed.length() > 0) {
 					char charAt = trimmed.charAt(0);
@@ -368,12 +373,7 @@ public class MDDParser {
 											break;
 										}
 									}
-									if (parentAnalysis == null) {
-										blockType = BlockType.SCALAR;
-										lineContent = line;
-										depth = 0;
-									}
-									else {
+									if (parentAnalysis != null && !BlockType.EMPTY.equals(parentAnalysis.getBlockType())) {
 										// it must be at least 1, but other than that it can be at the same depth as the parent
 //										int expectedDepth = Math.max(parentAnalysis.getDepth(), 1);
 										int expectedDepth = parentAnalysis.getDepth();
@@ -383,12 +383,39 @@ public class MDDParser {
 											lineContent = content(line, depth, false);
 											blockType = BlockType.MULTILINE;
 										}
-										else {
-											blockType = BlockType.SCALAR;
-										}
 									}
 								}
-								else {
+								// still not a block type, we must be plain text
+								if (blockType == null) {
+									// if we recognize a particular format in markdown, we add that
+									if (trimmed.startsWith("######")) {
+										textType = TextType.H6;
+									}
+									else if (trimmed.startsWith("#####")) {
+										textType = TextType.H5;
+									}
+									else if (trimmed.startsWith("####")) {
+										textType = TextType.H4;
+									}
+									else if (trimmed.startsWith("###")) {
+										textType = TextType.H3;
+									}
+									else if (trimmed.startsWith("##")) {
+										textType = TextType.H2;
+									}
+									else if (trimmed.startsWith("#")) {
+										textType = TextType.H1;
+									}
+									else if (trimmed.startsWith(">")) {
+										textType = TextType.QUOTE;
+									}
+									else if (trimmed.startsWith("|")) {
+										textType = TextType.TABLE;
+									}
+									else {
+										textType = TextType.P;
+									}
+									
 									blockType = BlockType.SCALAR;
 									lineContent = line;
 									depth = 0;
@@ -396,33 +423,11 @@ public class MDDParser {
 							}
 					}
 				}
-				// it is possible to have an empty line, it might be an actual empty line in a multiline string, to be syntactically correct it has to have at least as much depth as the parent it belongs to, but that is not analyzed here
+				// empty lines in markdown format usually denote the end of a block
+				// it COULD be part of a depth 0 multiline string
+				// depth 0 however is rather rare though, if needed we can add a specific syntax for it? for example use "---" to indicate an empty line that should belong? or simply  "\" or...
 				else {
-					blockType = BlockType.TEXT;
-					if (trimmed.startsWith("######")) {
-						textType = TextType.H6;
-					}
-					else if (trimmed.startsWith("#####")) {
-						textType = TextType.H5;
-					}
-					else if (trimmed.startsWith("####")) {
-						textType = TextType.H4;
-					}
-					else if (trimmed.startsWith("###")) {
-						textType = TextType.H3;
-					}
-					else if (trimmed.startsWith("##")) {
-						textType = TextType.H2;
-					}
-					else if (trimmed.startsWith("#")) {
-						textType = TextType.H1;
-					}
-					else if (trimmed.startsWith(">")) {
-						textType = TextType.QUOTE;
-					}
-					else {
-						textType = TextType.P;
-					}
+					blockType = BlockType.EMPTY;
 				}
 				BlockAnalysis analysis = new BlockAnalysis();
 				analysis.setContent(lineContent);
@@ -440,7 +445,7 @@ public class MDDParser {
 	}
 	
 	// we get the content of the line given the depth
-	private static String content(String line, int depth, boolean allowLeadingWhitespace) {
+	private String content(String line, int depth, boolean allowLeadingWhitespace) {
 		String content = line.substring(depth);
 		// at greater depths, we allow for a SINGLE whitespace after the depth marker for readability
 		// any whitespace beyond that is considered part of the value
@@ -454,7 +459,7 @@ public class MDDParser {
 		return content;
 	}
 	
-	private static int depth(String line) {
+	private int depth(String line) {
 		// whether we encountered a syntactical character
 		// we need to keep track of that because whitespace AFTER a syntactical element does not count
 		boolean syntactical = false;
@@ -475,7 +480,7 @@ public class MDDParser {
 		return syntactical ? line.length() : 0;
 	}
 	
-	private static List<String> getKeyValue(String line) {
+	private List<String> getKeyValue(String line) {
 		int index = 0;
 		// we need to find an unescaped ":"
 		while ((index = line.indexOf(':', index)) >= 0) {
@@ -492,6 +497,9 @@ public class MDDParser {
 			}
 			if (!escaped) {
 				String key = unescape(line.substring(0, index));
+				if (allowHeadersAsKey) {
+					key = key.replaceAll("^[#]+[\\s]*", "");
+				}
 				// if it's not a valid key, it is not a valid key-value
 				if (!isValidKey(key)) {
 					return null;
@@ -515,12 +523,12 @@ public class MDDParser {
 		return null;
 	}
 	
-	private static boolean isValidKey(String key) {
+	private boolean isValidKey(String key) {
 		key = cleanupKey(key.trim());
 		return key.trim().matches("[\\w-]+");
 	}
 	
-	private static String unescape(String escaped) {
+	private String unescape(String escaped) {
 		// make sure escaped backslashes are not used for other reasons
 		escaped = escaped.replace("\\\\", "::escaped-backslash::");
 		escaped = escaped.replaceAll("\\:", ":");

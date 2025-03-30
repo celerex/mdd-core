@@ -59,6 +59,6 @@ public class BlockAnalysis {
 	}
 	@Override
 	public String toString() {
-		return "[" + blockType + "] " + content;
+		return "[" + blockType + (textType == null ? "" : "-" + textType) + "] " + content;
 	}
 }

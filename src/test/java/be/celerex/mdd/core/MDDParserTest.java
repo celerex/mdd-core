@@ -16,19 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class MDDParserTest extends TestCase {
 	
 	public void testFile(String file) throws MDDSyntaxException {
-		String content;
-		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream(file)) {
-			byte [] bytes = new byte[1024];
-			ByteArrayOutputStream output = new ByteArrayOutputStream();
-			int read = 0;
-			while ((read = input.read(bytes)) > 0) {
-				output.write(bytes, 0, read);
-			}
-			content = new String(output.toByteArray());
-		}
-		catch (IOException e) {
-			throw new RuntimeException(e);
-		}
+		String content = readFile(file);
 		MDDParser parser = new MDDParser();
 		List<BlockAnalysis> analyses = parser.analyze(content);
 		String mdd = null;
@@ -65,6 +53,23 @@ public class MDDParserTest extends TestCase {
 		else if (counter == 0) {
 			throw new IllegalArgumentException("No mdd found in: " + file);
 		}
+	}
+
+	public static String readFile(String file) {
+		String content;
+		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream(file)) {
+			byte [] bytes = new byte[1024];
+			ByteArrayOutputStream output = new ByteArrayOutputStream();
+			int read = 0;
+			while ((read = input.read(bytes)) > 0) {
+				output.write(bytes, 0, read);
+			}
+			content = new String(output.toByteArray());
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		return content;
 	}
 	
 	@SuppressWarnings("unchecked")
