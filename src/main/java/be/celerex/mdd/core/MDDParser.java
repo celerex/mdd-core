@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Stack;
 
 import be.celerex.mdd.api.CollectionProvider;
+import be.celerex.mdd.api.MetaProvider;
 import be.celerex.mdd.api.ObjectProvider;
 import be.celerex.mdd.api.ScalarProvider;
 
@@ -18,6 +19,9 @@ public class MDDParser {
 	private ObjectProvider objectProvider = new STLObjectProvider();
 	
 	private ScalarProvider scalarProvider = new StandardScalarProvider();
+	
+	@SuppressWarnings("rawtypes")
+	private MetaProvider metaProvider = new NOPMetaProvider();
 	
 	// normally we only take root plain text as a key, e.g. "book:"
 	// however, in documents it can be userful to allow them as headers as well, e.g. "# book:"
@@ -127,7 +131,8 @@ public class MDDParser {
 										objectProvider.set(peekElement, elementKey, newList);
 										stack.push(newList);
 									}
-									else if (next.getBlockType() == BlockType.ELEMENT) {
+									// meta can only be set on an object, so it is the same as element (?)
+									else if (next.getBlockType() == BlockType.ELEMENT || next.getBlockType() == BlockType.META) {
 										Object newObject = objectProvider.newInstance();
 										objectProvider.set(peekElement, elementKey, newObject);
 										lastObject = newObject;
@@ -141,7 +146,6 @@ public class MDDParser {
 									objectProvider.set(peekElement, elementKey, null);
 								}
 							}
-							
 						}
 						// we have a value as well, set it immediately
 						else {
@@ -242,8 +246,62 @@ public class MDDParser {
 						collectionProvider.add(scalars, interpretScalar(analysis.getContent() + additionalContent.toString(), null, null));
 //						stack.push(interpretScalar(analysis.getContent()));
 					break;
+					/**
+					 * Only the root of the metadata is configured as meta, nested objects and lists etc work as per usual
+					 */
 					case META:
-						throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "Meta entries are currently not supported");
+						if (metaProvider == null) {
+							throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "Meta entries are not supported, add a meta provider");
+						}
+						if (stack.isEmpty()) {
+							stack.push(objectProvider.newInstance());
+							lastObject = stack.peek();
+						}
+						Object metaPeek = stack.peek();
+						if (!objectProvider.isObject(metaPeek)) {
+							throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "Meta entries are only supported on objects");
+						}
+						Object metadata = metaProvider.getMetadata(metaPeek);
+						if (metadata == null) {
+							metadata = metaProvider.newInstance();
+							metaProvider.setMetadata(metaPeek, metadata);
+						}
+						// might not support actual metadata
+						if (metadata != null) {
+							String key = cleanupKey(analysis.getKeyValue().get(0));
+							// a complex metadata object
+							if (analysis.getKeyValue().size() == 1) {
+								lastObject = metadata;
+								lastKey = key;
+								// copied from the object code above for keyvalue size 1 but replaced objectProvider with metaProvider...should combine it...
+								expectedDepth = analysis.getDepth() + 1;
+								if (i < analyses.size() - 1) {
+									BlockAnalysis next = analyses.get(i + 1);
+									if (next.getDepth() >= expectedDepth) {
+										if (next.getBlockType() == BlockType.LIST) {
+											Object newList = collectionProvider.newInstance();
+											metaProvider.set(metadata, key, newList);
+											stack.push(newList);
+										}
+										else if (next.getBlockType() == BlockType.ELEMENT) {
+											Object newObject = objectProvider.newInstance();
+											metaProvider.set(metadata, key, newObject);
+											lastObject = newObject;
+											stack.push(newObject);
+										}
+										else {
+											throw new MDDSyntaxException(analysis.getLineNumber(), analysis.getRaw(), "The element is not followed by a list or object");			
+										}
+									}
+									else {
+										metaProvider.set(metadata, key, null);
+									}
+								}
+							}
+							else {
+								metaProvider.set(metadata, key, interpretScalar(analysis.getKeyValue().get(1) + additionalContent.toString(), lastObject, key));
+							}
+						}
 				}
 			}
 			if (stack.isEmpty()) {
@@ -363,7 +421,12 @@ public class MDDParser {
 						case '-': blockType = BlockType.LIST; break;
 						case '*': blockType = BlockType.ELEMENT; break;
 						// META is reserved for future use
-						case '+': blockType = BlockType.META; break;
+						case '+': 
+							blockType = BlockType.META;
+							if (keyValue == null) {
+								throw new MDDSyntaxException(i, line, "Metadata must have at least a key");
+							}
+						break;
 //						case '>': type = BlockType.COMMENT; break;
 						default: 
 							// at depth 0 we can still have element definitions if we have a key
@@ -427,7 +490,6 @@ public class MDDParser {
 									else {
 										textType = TextType.P;
 									}
-									
 									blockType = BlockType.SCALAR;
 									lineContent = line;
 									depth = 0;
@@ -441,6 +503,11 @@ public class MDDParser {
 				else {
 					blockType = BlockType.EMPTY;
 				}
+				// if we don't have a key value, it may be because we have escaped it!
+				if (keyValue == null) {
+					lineContent = unescape(lineContent);
+				}
+				
 				BlockAnalysis analysis = new BlockAnalysis();
 				analysis.setContent(lineContent);
 				analysis.setDepth(depth);
@@ -495,7 +562,7 @@ public class MDDParser {
 	private List<String> getKeyValue(String line) {
 		int index = 0;
 		// we need to find an unescaped ":"
-		while ((index = line.indexOf(':', index)) >= 0) {
+		while ((index = line.indexOf(':', index + 1)) >= 0) {
 			boolean escaped = false;
 			// we need to check the characters before and count the backslashes
 			for (int i = index - 1; i >= 0; i--) {
@@ -543,7 +610,8 @@ public class MDDParser {
 	private String unescape(String escaped) {
 		// make sure escaped backslashes are not used for other reasons
 		escaped = escaped.replace("\\\\", "::escaped-backslash::");
-		escaped = escaped.replaceAll("\\:", ":");
+		// escape for string AND escape for regex!
+		escaped = escaped.replaceAll("\\\\:", ":");
 		escaped = escaped.replace("::escaped-backslash::", "\\");
 		return escaped;
 	}
@@ -586,6 +654,14 @@ public class MDDParser {
 
 	public void setBreakOnEmpty(boolean breakOnEmpty) {
 		this.breakOnEmpty = breakOnEmpty;
+	}
+
+	public MetaProvider<?, ?> getMetaProvider() {
+		return metaProvider;
+	}
+
+	public void setMetaProvider(MetaProvider<?, ?> metaProvider) {
+		this.metaProvider = metaProvider;
 	}
 	
 }

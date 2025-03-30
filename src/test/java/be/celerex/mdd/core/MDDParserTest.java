@@ -18,6 +18,7 @@ public class MDDParserTest extends TestCase {
 	public void testFile(String file) throws MDDSyntaxException {
 		String content = readFile(file);
 		MDDParser parser = new MDDParser();
+		parser.setMetaProvider(new STLMetaProvider());
 		List<BlockAnalysis> analyses = parser.analyze(content);
 		String mdd = null;
 		Object expected = null;

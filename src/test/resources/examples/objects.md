@@ -185,3 +185,118 @@ You can also prettify keys for readability, these prettifications will be ignore
 	]
 }
 ```
+
+## Combining
+
+You can combine data types:
+
+```mdd
+- import: http://example.com/test
+- import:
+	* url: http://example.com/otherTest
+	* alias: renameTo
+- import:
+	* uri: http://example.com/first
+	- alias:
+		* name: test1
+		* as: test2
+```
+
+This results in:
+
+```json
+{
+	"import": [
+		"http://example.com/test",
+		{
+			"url": "http://example.com/otherTest", 
+			"alias": "renameTo"
+		},
+		{
+			"uri": "http://example.com/first", 
+			"alias": [
+				{
+					"name": "test1", 
+					"as": "test2"
+				}
+			]
+		}
+	]
+}
+```
+
+## Similar collections
+
+Consider this collection:
+
+```mdd
+* enumeration:
+	- true
+	- false
+```
+
+This results in:
+
+```json
+{
+	"enumeration": [ "true", "false" ]
+}
+```
+
+This collection is actually the same thing:
+
+```mdd
+- enumeration: true
+- enumeration: false
+```
+
+This also resolves to:
+
+```json
+{
+	"enumeration": [ "true", "false" ]
+}
+```
+
+## Metadata
+
+Metadata is by default not supported, you need to explicitly configure a metadata provider in order to use it. A default STL one is provided though.
+
+Even though in markdown the "+" denotes a list, it is not processed as a list in MDD, this means you can not do this:
+
+```mdd
++ import: http://example.com
++ import: http://example2.com
+```
+
+This will result in a single key with the second value (as it overwrites the first).
+
+```json
+{
+	"$meta": {
+		"import": "http://example2.com"
+	}
+}
+```
+
+You can make it a list using this syntax though:
+
+```mdd
++ import:
+	- http\://example.com
+	- http\://example2.com
+```
+
+Note that we escape the urls to prevent them from being picked up as keys. This results in:
+
+```json
+{
+	"$meta":
+	{
+		"import": [
+			"http://example.com", 
+			"http://example2.com"
+		]
+	}
+}
+```
