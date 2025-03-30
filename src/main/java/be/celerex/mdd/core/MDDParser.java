@@ -21,7 +21,11 @@ public class MDDParser {
 	
 	// normally we only take root plain text as a key, e.g. "book:"
 	// however, in documents it can be userful to allow them as headers as well, e.g. "# book:"
-	private boolean allowHeadersAsKey = false;
+	private boolean allowHeadersAsKey = true;
+	
+	// should interpretation of a block break if an empty line is detected?
+	// for instance if you have a key "book:", then an empty line and then "* author: bob". Does the author belong to the book?
+	private boolean breakOnEmpty = false;
 	
 	@SuppressWarnings("unchecked")
 	public Object parse(String content) throws MDDSyntaxException {
@@ -37,10 +41,18 @@ public class MDDParser {
 			// it is a line-based approach
 			Object lastObject = null;
 			String lastKey = null;
+			
+			// we filter out empty lines and text lines so we can make deducations based on the next actual element
+			if (!breakOnEmpty) {
+				analyses = analyses.stream()
+					.filter(a -> a.getBlockType() != BlockType.EMPTY)
+					.toList();
+			}
+			
 			for (int i = 0; i < analyses.size(); i++) {
 				BlockAnalysis analysis = analyses.get(i);
 				
-				// we don't care about text
+				// we don't care about text or empty
 				if (analysis.getBlockType() == BlockType.TEXT || analysis.getBlockType() == BlockType.EMPTY) {
 					continue;
 				}
@@ -560,4 +572,20 @@ public class MDDParser {
 		this.scalarProvider = scalarProvider;
 	}
 
+	public boolean isAllowHeadersAsKey() {
+		return allowHeadersAsKey;
+	}
+
+	public void setAllowHeadersAsKey(boolean allowHeadersAsKey) {
+		this.allowHeadersAsKey = allowHeadersAsKey;
+	}
+
+	public boolean isBreakOnEmpty() {
+		return breakOnEmpty;
+	}
+
+	public void setBreakOnEmpty(boolean breakOnEmpty) {
+		this.breakOnEmpty = breakOnEmpty;
+	}
+	
 }

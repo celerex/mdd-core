@@ -48,6 +48,7 @@ public class MDDParserTest extends TestCase {
 		}
 		// we found an mdd without an expectation, print it
 		if (mdd != null) {
+			System.out.println(parser.analyze(mdd));
 			System.out.println(parser.parse(mdd));
 		}
 		else if (counter == 0) {
@@ -97,6 +98,16 @@ public class MDDParserTest extends TestCase {
 		testFile("examples/nested-collections.md");
 		testFile("examples/scalars.md");
 		testFile("examples/objects.md");
+	}
+	
+	public void testConfiguration() throws MDDSyntaxException {
+		String content = readFile("examples/configuration.md");
+		Object parsed = new MDDParser().parse(content);
+		assertEquals(
+			"{http={port=8080, ssl=false, listener=[{class=com.example.Listener1, phase=early}, {class=com.example.Listener2, phase=late}, {class=com.example.Listener3, phase=early}]}, "
+				+ "mail={port=8025, starttls=true}, logLevel=INFO, development=false, name=example-server, clustered=true, count=[1, 2], final=[3]}",
+			parsed.toString()
+		);
 	}
 	
 	public void testBasicScalars() throws MDDSyntaxException {

@@ -150,3 +150,43 @@ When we parse this, it yields the following (expressed in JSON):
 	"value2": "multiline\nin another text"
 }
 ```
+
+## Allow for headers as keys
+
+If we just type a header that is not a valid key definition, it works as expected:
+
+```mdd
+# book
+
+* author: bob
+* isbn: 1234
+```
+
+This becomes an anonymous object:
+
+```json
+{
+	"author": "bob", 
+	"isbn": "1234"
+}
+```
+
+However, with the header-as-key feature turned on, you can have a header pose as a valid key:
+
+```mdd
+# book:
+
+* author: bob
+* isbn: 1234
+```
+
+This becomes
+
+```json
+{ 
+	"book": {
+		"author": "bob", 
+		"isbn": "1234"
+	}
+}
+```
